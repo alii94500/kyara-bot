@@ -1,0 +1,26 @@
+name: Kyara auto-booster
+
+on:
+  schedule:
+    - cron: '*/20 * * * *'   # toutes les 20 min (GitHub peut décaler de quelques minutes)
+  workflow_dispatch:          # bouton pour lancer à la main
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    container: mcr.microsoft.com/playwright:v1.48.2-jammy
+    steps:
+      - uses: actions/checkout@v4
+      - run: npm install
+      - run: node kyara.js
+        env:
+          HOME: /root
+          KYARA_COOKIES: ${{ secrets.KYARA_COOKIES }}
+          KYARA_LOCALSTORAGE: ${{ secrets.KYARA_LOCALSTORAGE }}
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: capture
+          path: capture.png
+          retention-days: 1
