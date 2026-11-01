@@ -151,8 +151,12 @@ async function pageLogic() {
   const page = await context.newPage();
   let result;
   try {
-    await page.goto('https://kyara.games/', { waitUntil: 'networkidle', timeout: 60000 });
-    await page.waitForTimeout(5000);
+    await page.goto('https://kyara.games/', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    // attend que le compteur de stock (ex : 3/10) apparaisse, 45 s max
+    await page
+      .waitForFunction(() => /\b\d{1,2}\s*\/\s*10\b/.test(document.body.innerText), null, { timeout: 45000 })
+      .catch(() => console.log('Compteur pas visible après 45 s'));
+    await page.waitForTimeout(3000);
     result = await page.evaluate(pageLogic);
   } catch (e) {
     result = { ok: false, msg: 'Erreur : ' + e.message, logs: [] };
