@@ -5,10 +5,14 @@ on:
     - cron: '*/20 * * * *'   # toutes les 20 min (GitHub peut décaler de quelques minutes)
   workflow_dispatch:          # bouton pour lancer à la main
 
+concurrency:
+  group: kyara
+  cancel-in-progress: false
+
 jobs:
   run:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 85
     container: mcr.microsoft.com/playwright:v1.48.2-jammy
     steps:
       - uses: actions/checkout@v4
