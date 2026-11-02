@@ -15,6 +15,18 @@ function toPwCookies(raw) {
   }));
 }
 
+// Lit le stock "X/10" affiché sur la page
+function readStock() {
+  for (const el of document.querySelectorAll('body *')) {
+    if (el.children.length) continue;
+    const r = el.getBoundingClientRect();
+    if (!r.width || !r.height) continue;
+    const m = (el.textContent || '').trim().match(/^(\d{1,2})\s*\/\s*10$/);
+    if (m) return parseInt(m[1], 10);
+  }
+  return null;
+}
+
 // Logique exécutée DANS la page (même principe que le script Tampermonkey)
 async function pageLogic() {
   const SHONEN = /sh[oōô]u?nen\s*mix/i;
@@ -157,6 +169,33 @@ async function pageLogic() {
       .waitForFunction(() => /\b\d{1,2}\s*\/\s*10\b/.test(document.body.innerText), null, { timeout: 45000 })
       .catch(() => console.log('Compteur pas visible après 45 s'));
     await page.waitForTimeout(3000);
+
+    // --- Attente sur place : si le stock sera plein dans moins de MAX_WAIT_MIN, on attend ---
+    const MAX_WAIT_MIN = 65;     // 1 booster toutes les 10 min → attend si stock >= 4
+    const start = Date.now();
+    let stock = await page.evaluate(readStock);
+    if (stock !== null && stock < 10) {
+      const besoin = (10 - stock) * 10;
+      if (besoin > MAX_WAIT_MIN) {
+        console.log(`Stock ${stock}/10 : plein dans ~${besoin} min, le prochain passage s'en chargera.`);
+      } else {
+        console.log(`Stock ${stock}/10 : j'attends ~${besoin} min sur place jusqu'à 10/10…`);
+        let n = 0;
+        while (stock !== null && stock < 10 && Date.now() - start < (MAX_WAIT_MIN + 10) * 60000) {
+          await page.waitForTimeout(60000);
+          n++;
+          if (n % 5 === 0) { // recharge toutes les 5 min pour avoir un compteur à jour
+            await page.reload({ waitUntil: 'domcontentloaded' }).catch(() => {});
+            await page
+              .waitForFunction(() => /\b\d{1,2}\s*\/\s*10\b/.test(document.body.innerText), null, { timeout: 45000 })
+              .catch(() => {});
+            await page.waitForTimeout(3000);
+          }
+          stock = await page.evaluate(readStock);
+          console.log(`  … stock ${stock}/10`);
+        }
+      }
+    }
     result = await page.evaluate(pageLogic);
   } catch (e) {
     result = { ok: false, msg: 'Erreur : ' + e.message, logs: [] };
